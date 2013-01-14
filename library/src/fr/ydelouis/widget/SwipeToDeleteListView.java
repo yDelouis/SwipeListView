@@ -1,6 +1,5 @@
 package fr.ydelouis.widget;
 
-
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.RectF;
@@ -16,204 +15,246 @@ import android.widget.ListView;
 
 public class SwipeToDeleteListView extends ListView
 {
-	private static final long ANIM_LENGTH = 300;
-	private static final long ANIM_REFRESH = 50;
-	private static final int NO_ITEM_DRAGGED = -1;
-	
-	private int draggedItemPosition = NO_ITEM_DRAGGED;
-	private float draggedViewOffset = 0;
-	private float deletedItemHeigth;
-	private float deletedHeightPercentage = 1;
-	private float lastMotionEventX;
-	private float lastMotionEventY;
-	private Drawable selector;
-	private OnItemDeletedListener onItemDeletedListener;
-	
+	private static final long		ANIM_LENGTH			= 300;
+	private static final long		ANIM_REFRESH		= 50;
+	private static final int		NO_ITEM_DRAGGED		= -1;
+
+	private int						draggedItemPosition	= NO_ITEM_DRAGGED;
+	private float					dragPercentage		= 0;
+	private MotionEvent				lastMotionEvent;
+	private Drawable				selector;
+	private OnItemDeletedListener	onItemDeletedListener;
+
 	public SwipeToDeleteListView(Context context, AttributeSet attrs) {
 		this(context, attrs, 0);
 	}
-	
+
 	public SwipeToDeleteListView(Context context, AttributeSet attrs, int defStyle) {
 		super(context, attrs, defStyle);
-		
-		if(getId() == NO_ID)
-			throw new RuntimeException("An id must be set in the XML layout for this DeletableListView");
-		
+
 		selector = getSelector();
 		if(getSelector() == null)
 			selector = getResources().getDrawable(android.R.drawable.list_selector_background);
 	}
-	
+
 	@Override
 	public void setAdapter(ListAdapter adapter) {
-		super.setAdapter(new DeletableListAdapter(adapter));
+		super.setAdapter(new SwipeToDeleteAdapter(adapter));
 	}
-	
+
 	@Override
 	public ListAdapter getAdapter() {
 		if(super.getAdapter() == null)
 			return null;
-		return ((DeletableListAdapter) super.getAdapter()).getAdapter();
+		return ((SwipeToDeleteAdapter) super.getAdapter()).getAdapter();
 	}
-	
+
+	public void notifyDataSetChanged() {
+		((SwipeToDeleteAdapter) super.getAdapter()).notifyDataSetChanged();
+	}
+
+	public void setOnItemDeletedListener(OnItemDeletedListener onItemDeletedListener) {
+		this.onItemDeletedListener = onItemDeletedListener;
+	}
+
+	public OnItemDeletedListener getOnItemDeletedListener() {
+		return onItemDeletedListener;
+	}
+
 	@Override
 	protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
 		if(draggedItemPosition != (Integer) child.getTag(getId()))
 			return super.drawChild(canvas, child, drawingTime);
-		
-		float alpha = 1 - 3/2*Math.abs(draggedViewOffset / getWidth());
-		if(alpha < 0)
-			alpha = 0;
-		RectF rect = new RectF(0, 0, canvas.getWidth(), canvas.getHeight());
-		canvas.saveLayerAlpha(rect, (int) (alpha*255), Canvas.ALL_SAVE_FLAG);
-		canvas.translate(draggedViewOffset, 0);
+
+		return drawDraggedChild(canvas, child, drawingTime);
+	}
+
+	private boolean drawDraggedChild(Canvas canvas, View child, long drawingTime) {
+		canvas.save(Canvas.ALL_SAVE_FLAG);
+		setAlpha(canvas);
+		setTranslation(canvas);
 		boolean hasInvalidated = super.drawChild(canvas, child, drawingTime);
-		canvas.translate(-draggedViewOffset, 0);
 		canvas.restore();
-		
 		return hasInvalidated;
 	}
-	
-	private boolean isToBeDeleted() {
-		return Math.abs(draggedViewOffset) > getWidth()*1/2;
+
+	private void setAlpha(Canvas canvas) {
+		float alphaPercentage = 1f - 4f / 3f * Math.abs(dragPercentage);
+		if(alphaPercentage < 0)
+			alphaPercentage = 0;
+		int alpha = (int) (255 * alphaPercentage);
+		RectF rect = new RectF(0, 0, canvas.getWidth(), canvas.getHeight());
+		canvas.saveLayerAlpha(rect, alpha, Canvas.ALL_SAVE_FLAG);
 	}
-	
-	private void reset() {
-		deletedItemHeigth = 0;
-		deletedHeightPercentage = 1;
-		draggedViewOffset = 0;
-		draggedItemPosition = NO_ITEM_DRAGGED;
-		notifyDataSetChanged();
+
+	private void setTranslation(Canvas canvas) {
+		float translationX = dragPercentage * getWidth();
+		canvas.translate(translationX, 0);
 	}
-	
-	private void startBackAnimation() {
-		new CountDownTimer(ANIM_LENGTH, ANIM_REFRESH) {
-			public void onTick(long millisUntilFinished) {
-				if(draggedViewOffset > 0) {
-					draggedViewOffset -= getWidth()/(ANIM_LENGTH/ANIM_REFRESH);
-					if(draggedViewOffset < 0) {
-						onFinish();
-					}
-				}
-				if(draggedViewOffset < 0) {
-					draggedViewOffset += getWidth()/(ANIM_LENGTH/ANIM_REFRESH);
-					if(draggedViewOffset > 0) {
-						onFinish();
-					}
-				}
-				notifyDataSetChanged();
-			}
-			
-			@Override
-			public void onFinish() {
-				reset();
-			}
-		}.start();
-	}
-	
-	private void startDeletionAnimation() {
-		new CountDownTimer(ANIM_LENGTH, ANIM_REFRESH) {
-			public void onTick(long millisUntilFinished) {
-				if(draggedViewOffset > 0) {
-					draggedViewOffset += getWidth()/3/(ANIM_LENGTH/ANIM_REFRESH);
-				}
-				if(draggedViewOffset < 0) {
-					draggedViewOffset -= getWidth()/3/(ANIM_LENGTH/ANIM_REFRESH);
-				}
-				notifyDataSetChanged();
-			}
-			
-			@Override
-			public void onFinish() {
-				new CountDownTimer(ANIM_LENGTH, ANIM_REFRESH) {
-					@Override
-					public void onTick(long millisUntilFinished) {
-						deletedHeightPercentage = ((float) millisUntilFinished) / ((float) ANIM_LENGTH);
-						notifyDataSetChanged();
-					}
-					
-					@Override
-					public void onFinish() {
-						int deletedPosition = draggedItemPosition;
-						reset();
-						if(onItemDeletedListener != null) 
-							onItemDeletedListener.onItemDeleted(SwipeToDeleteListView.this, deletedPosition);
-					}
-				}.start();
-			}
-		}.start();
-	}
-	
+
 	@Override
 	public boolean onTouchEvent(MotionEvent event) {
-		switch (event.getAction()) {
+		boolean handled;
+		switch(event.getAction()) {
 			case MotionEvent.ACTION_DOWN:
 				if(selector != null)
 					setSelector(selector);
 				startDragging(event);
+				handled = false;
 				break;
 			case MotionEvent.ACTION_MOVE:
 				if(isDraggingLeftOrRight(event)) {
 					setSelector(android.R.color.transparent);
-					draggedViewOffset += event.getX() - lastMotionEventX;
-					notifyDataSetChanged();
-					saveLastMotionEvent(event);
-					return true;
-				} else if(isDraggingTopOrBottom(event))
+					drag(event);
+					handled = true;
+				} else if(isDraggingTopOrBottom(event)) {
 					startBackAnimation();
+					handled = false;
+				} else {
+					handled = false;
+				}
 				break;
 			case MotionEvent.ACTION_UP:
-				draggedViewOffset += event.getX() - lastMotionEventX;
-				saveLastMotionEvent(event);
-				if(isToBeDeleted())
-					startDeletionAnimation();
-				else
-					startBackAnimation();
-				if(Math.abs(draggedViewOffset) > 20)
-					return true;
+				drag(event);
+				stopDragging();
+				handled = Math.abs(dragPercentage * getWidth()) > 20;
+				break;
+			default:
+				handled = false;
+				break;
 		}
-		return super.onTouchEvent(event);
+		return handled || super.onTouchEvent(event);
 	}
-	
+
+	private void saveLastMotionEvent(MotionEvent event) {
+		lastMotionEvent = MotionEvent.obtain(event);
+	}
+
 	private void startDragging(MotionEvent event) {
 		draggedItemPosition = pointToPosition((int) event.getX(), (int) event.getY());
-		draggedViewOffset = 0;
+		dragPercentage = 0;
 		saveLastMotionEvent(event);
 	}
-	
+
+	private void drag(MotionEvent event) {
+		float draggedViewOffset = event.getX() - lastMotionEvent.getX();
+		dragPercentage += draggedViewOffset / getWidth();
+		notifyDataSetChanged();
+		saveLastMotionEvent(event);
+	}
+
+	private void stopDragging() {
+		if(isToBeDeleted())
+			startDeletionAnimation();
+		else
+			startBackAnimation();
+	}
+
+	private void reset() {
+		dragPercentage = 0;
+		draggedItemPosition = NO_ITEM_DRAGGED;
+		notifyDataSetChanged();
+	}
+
+	private boolean isToBeDeleted() {
+		return Math.abs(dragPercentage) > 0.5;
+	}
+
 	private boolean isDraggingLeftOrRight(MotionEvent event) {
-		return Math.abs(event.getX() - lastMotionEventX) > Math.abs(event.getY() - lastMotionEventY);
+		float deltaX = Math.abs(event.getX() - lastMotionEvent.getX());
+		float deltaY = Math.abs(event.getY() - lastMotionEvent.getY());
+		return deltaX > deltaY;
 	}
-	
+
 	private boolean isDraggingTopOrBottom(MotionEvent event) {
-		return Math.abs(event.getY() - lastMotionEventY) > 20;
+		float deltaY = Math.abs(event.getY() - lastMotionEvent.getY());
+		return deltaY > 20;
 	}
-	
-	private void saveLastMotionEvent(MotionEvent event) {
-		lastMotionEventX = event.getX();
-		lastMotionEventY = event.getY();
+
+	private void startBackAnimation() {
+		new BackAnimator().start();
 	}
-	
-	public void notifyDataSetChanged() {
-		((DeletableListAdapter) super.getAdapter()).notifyDataSetChanged();
+
+	private void startDeletionAnimation() {
+		new DeleteAnimator().start();
 	}
-	
-	public void setOnItemDeletedListener(OnItemDeletedListener onItemDeletedListener) {
-		this.onItemDeletedListener = onItemDeletedListener;
-	}
-	
-	public interface OnItemDeletedListener {
+
+	public interface OnItemDeletedListener
+	{
 		public void onItemDeleted(SwipeToDeleteListView listView, int position);
 	}
-	
-	private class DeletableListAdapter extends BaseAdapter
+
+	private class BackAnimator extends CountDownTimer
 	{
-		private ListAdapter adapter;
-		
-		public DeletableListAdapter(ListAdapter adapter) {
+		public BackAnimator() {
+			super(ANIM_LENGTH, ANIM_REFRESH);
+		}
+
+		@Override
+		public void onTick(long millisUntilFinished) {
+			float delta = 0.5f * ((float) ANIM_REFRESH) / ((float) ANIM_LENGTH);
+			if(dragPercentage > 0)
+				delta = -delta;
+			float newDragPercentage = dragPercentage + delta;
+			if(isChangingSign(dragPercentage, newDragPercentage))
+				onFinish();
+			else {
+				dragPercentage = newDragPercentage;
+				notifyDataSetChanged();
+			}
+		}
+
+		@Override
+		public void onFinish() {
+			reset();
+		}
+
+		private boolean isChangingSign(float oldNumber, float newNumber) {
+			return (oldNumber * newNumber) <= 0;
+		}
+	}
+
+	private class DeleteAnimator extends CountDownTimer
+	{
+		private int	deletedPosition;
+
+		public DeleteAnimator() {
+			super(ANIM_LENGTH, ANIM_REFRESH);
+			deletedPosition = draggedItemPosition;
+		}
+
+		@Override
+		public void onTick(long millisUntilFinished) {
+			float delta = 0.5f * ((float) ANIM_REFRESH) / ((float) ANIM_LENGTH);
+			if(dragPercentage < 0)
+				delta = -delta;
+			dragPercentage = dragPercentage + delta;
+			if(isBeingInvisible())
+				onFinish();
+			else
+				notifyDataSetChanged();
+		}
+
+		@Override
+		public void onFinish() {
+			if(onItemDeletedListener != null)
+				onItemDeletedListener.onItemDeleted(SwipeToDeleteListView.this, deletedPosition);
+			reset();
+		}
+
+		private boolean isBeingInvisible() {
+			return Math.abs(dragPercentage) > 1;
+		}
+	}
+
+	private class SwipeToDeleteAdapter extends BaseAdapter
+	{
+		private ListAdapter	adapter;
+
+		public SwipeToDeleteAdapter(ListAdapter adapter) {
 			this.adapter = adapter;
 		}
-		
+
 		public ListAdapter getAdapter() {
 			return adapter;
 		}
@@ -222,21 +263,17 @@ public class SwipeToDeleteListView extends ListView
 		public View getView(int position, View view, ViewGroup parent) {
 			view = adapter.getView(position, view, parent);
 			view.setTag(SwipeToDeleteListView.this.getId(), position);
-			if(position == draggedItemPosition) {
-				if(deletedItemHeigth == 0)
-					deletedItemHeigth = view.getHeight();
-				view.getLayoutParams().height = (int) (deletedItemHeigth*deletedHeightPercentage);
-			} else if(view.getLayoutParams() != null)
-				view.getLayoutParams().height = LayoutParams.WRAP_CONTENT;
 			return view;
 		}
-		
+
 		public int getCount() {
 			return adapter.getCount();
 		}
+
 		public Object getItem(int position) {
 			return adapter.getItem(position);
 		}
+
 		public long getItemId(int position) {
 			return adapter.getItemId(position);
 		}
