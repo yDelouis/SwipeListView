@@ -10,6 +10,7 @@
         android:divider="@android:color/black"
         android:dividerHeight="1dp"
 		android:background="@color/listBackground"
-		android:drawSelectorOnTop="true" />
+		android:drawSelectorOnTop="true"
+		android:cacheColorHint="@android:color/transparent"/>
 
 </RelativeLayout>

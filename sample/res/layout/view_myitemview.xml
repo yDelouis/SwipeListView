@@ -8,6 +8,7 @@
 		android:layout_width="match_parent"
 		android:layout_height="wrap_content"
 		android:text="New Text"
+		android:textStyle="bold"
 		android:id="@+id/myItemView_subject"
 		android:layout_alignParentLeft="true"
 		android:layout_alignParentTop="true"

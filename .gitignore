@@ -11,10 +11,6 @@
 # generated files
 bin/
 gen/
-library/bin/
-library/gen/
-sample/bin/
-sample/gen/
 
 # Local configuration file (sdk path, etc)
 local.properties
@@ -31,3 +27,4 @@ proguard/
 *.ipr
 *.iws
 .idea/
+*.eml

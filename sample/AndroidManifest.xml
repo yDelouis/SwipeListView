@@ -13,7 +13,7 @@
 
 		<activity
 			android:name=".MainActivity"
-			android:label="SwipeToDeleteListView">
+			android:label="@string/swipeToDeleteListView">
 			<intent-filter>
 				<action android:name="android.intent.action.MAIN" />
 				<category android:name="android.intent.category.LAUNCHER" />
@@ -22,7 +22,7 @@
 
 		<activity
 			android:name=".WithoutConfirmActivity"
-			android:label="@string/swipeToDeleteListViewDemo" />
+			android:label="@string/withoutConfirm" />
 		<activity
 			android:name=".WithConfirmActivity"
 			android:label="@string/withConfirm" />

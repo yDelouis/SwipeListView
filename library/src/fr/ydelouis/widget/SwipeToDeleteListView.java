@@ -1,8 +1,6 @@
 package fr.ydelouis.widget;
 
 import android.R;
-import android.graphics.drawable.ColorDrawable;
-import fr.ydelouis.widget.ItemState.State;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.RectF;
@@ -10,21 +8,28 @@ import android.graphics.drawable.Drawable;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.ListAdapter;
 import android.widget.ListView;
+import fr.ydelouis.widget.ItemState.State;
 
-public class SwipeToDeleteListView extends ListView
+import java.util.ArrayList;
+import java.util.List;
+
+public class SwipeToDeleteListView
+		extends ListView
 {
-	private static final long		ANIM_LENGTH			= 300;
-	private static final int		NO_ITEM_DRAGGED		= -1;
-
-	private SwipeToDeleteAdapter	adapter;
-	private int						draggedItemPosition	= NO_ITEM_DRAGGED;
-	private MotionEvent				lastMotionEvent;
-	private Drawable				selector;
-	private OnItemDeletedListener	onItemDeletedListener;
+	private static final long ANIM_LENGTH = 300;
+	private static final int NO_ITEM_DRAGGED = -1;
+	private SwipeToDeleteAdapter adapter;
+	private DeletedViewAdapter deletedViewAdapter;
+	private int draggedItemPosition = NO_ITEM_DRAGGED;
+	private MotionEvent lastMotionEvent;
+	private Drawable selector;
+	private OnItemDeletedListener onItemDeletedListener;
+	private OnItemDeletionConfirmedListener onItemDeletionConfirmedListener;
 	private long animLength = ANIM_LENGTH;
-	private boolean					isConfirmNeeded			= false;
+	private boolean isConfirmNeeded = false;
 
 	public SwipeToDeleteListView(Context context) {
 		super(context);
@@ -45,19 +50,6 @@ public class SwipeToDeleteListView extends ListView
 		selector = getSelector();
 		if(selector == null)
 			selector = getResources().getDrawable(android.R.drawable.list_selector_background);
-	}
-
-	@Override
-	public void setAdapter(ListAdapter adapter) {
-		this.adapter = new SwipeToDeleteAdapter(this, adapter);
-		super.setAdapter(this.adapter);
-	}
-
-	@Override
-	public ListAdapter getAdapter() {
-		if(adapter == null)
-			return null;
-		return adapter.getAdapter();
 	}
 
 	@Override
@@ -135,15 +127,16 @@ public class SwipeToDeleteListView extends ListView
 	}
 
 	private ItemState getDraggedItemState() {
-		if(draggedItemPosition == NO_ITEM_DRAGGED)
+		if(draggedItemPosition == NO_ITEM_DRAGGED || adapter == null)
 			return null;
 		return adapter.getItemState(draggedItemPosition);
 	}
 
 	private void startDragging(MotionEvent event) {
-		draggedItemPosition = pointToPosition((int) event.getX(), (int) event.getY());
-		ItemState itemState = adapter.getItemState(draggedItemPosition);
-		if(itemState != null) {
+		int position = pointToPosition((int) event.getX(), (int) event.getY());
+		ItemState itemState = adapter.getItemState(position);
+		if(itemState != null && itemState.getState() == State.Normal) {
+			draggedItemPosition = position;
 			itemState.setState(State.Dragged);
 			saveLastMotionEvent(event);
 		}
@@ -166,6 +159,7 @@ public class SwipeToDeleteListView extends ListView
 			startDeletionAnimation();
 		else
 			startBackAnimation();
+		draggedItemPosition = NO_ITEM_DRAGGED;
 	}
 
 	private boolean hasBeenDragged() {
@@ -185,6 +179,8 @@ public class SwipeToDeleteListView extends ListView
 	}
 
 	private boolean isDraggingHorizontally(MotionEvent event) {
+		if(lastMotionEvent == null || event == null)
+			return false;
 		float deltaX = Math.abs(event.getX() - lastMotionEvent.getX());
 		float deltaY = Math.abs(event.getY() - lastMotionEvent.getY());
 		return deltaX > deltaY;
@@ -196,19 +192,29 @@ public class SwipeToDeleteListView extends ListView
 	}
 
 	private void startBackAnimation() {
-		ItemState draggedItemState = getDraggedItemState();
-		if(draggedItemState != null)
-			new BackAnimation(this, draggedItemState, animLength).start();
+		startBackAnimation(getDraggedItemState());
+	}
+
+	private void startBackAnimation(ItemState itemState) {
+		if(itemState != null) {
+			new BackAnimation(this, itemState, animLength).start();
+		}
 	}
 
 	private void startDeletionAnimation() {
-		ItemState draggedItemState = getDraggedItemState();
+		startDeletionAnimation(draggedItemPosition);
+	}
+
+	private void startDeletionAnimation(int position) {
+		if(adapter == null)
+			return;
+		ItemState draggedItemState = adapter.getItemState(position);
 		if(draggedItemState != null)
 			new DeleteAnimation(this, draggedItemState, animLength).start();
 	}
 
 	private void startDeletionConfirmedAnimation(ItemState itemState) {
-		itemState.setState(State.DeletedConfirmed);
+		itemState.setState(State.DeletionConfirmed);
 		new DeletionConfirmedAnimation(this, itemState, animLength).start();
 	}
 
@@ -231,19 +237,90 @@ public class SwipeToDeleteListView extends ListView
 	void onItemDeletionConfirmed(ItemState itemState) {
 		if(onItemDeletedListener != null) {
 			if(isConfirmNeeded)
-				onItemDeletedListener.onItemDeletionConfirmed(this, itemState.getPosition());
+				onItemDeletionConfirmedListener.onItemDeletionConfirmed(this, itemState.getPosition());
 			else
 				onItemDeletedListener.onItemDeleted(this, itemState.getPosition());
 		}
 		adapter.onItemDeletionConfirmed(itemState);
 	}
 
-	public void setOnItemDeletedListener(OnItemDeletedListener onItemDeletedListener) {
-		this.onItemDeletedListener = onItemDeletedListener;
+	public void delete(int position) {
+		if(isConfirmNeeded) {
+			startDeletionAnimation();
+		} else {
+			confirmDeletion(position);
+		}
+	}
+
+	public List<Integer> getDeleted() {
+		if(adapter == null)
+			return new ArrayList<Integer>();
+		return adapter.getDeleted();
+	}
+
+	public void confirmDeletion(int position) {
+		if(adapter == null)
+			return;
+		ItemState itemState = adapter.getItemState(position);
+		if(itemState == null)
+			return;
+		startDeletionConfirmedAnimation(itemState);
+	}
+
+	public void confirmAllDeletion() {
+		for(Integer position : getDeleted())
+			confirmDeletion(position);
+	}
+
+	public void cancelDeletion(int position) {
+		ItemState itemState = adapter.getItemState(position);
+		if(itemState == null)
+			return;
+		itemState.setState(State.Dragged);
+		notifyDataSetChanged();
+		startBackAnimation(itemState);
+	}
+
+	public void cancelAllDeletions() {
+		for(Integer position : getDeleted())
+			cancelDeletion(position);
+	}
+
+	@Override
+	public ListAdapter getAdapter() {
+		if(adapter == null)
+			return null;
+		return adapter.getAdapter();
+	}
+
+	@Override
+	public void setAdapter(ListAdapter adapter) {
+		this.adapter = new SwipeToDeleteAdapter(this, adapter);
+		super.setAdapter(this.adapter);
+	}
+
+	public DeletedViewAdapter getDeletedViewAdapter() {
+		return deletedViewAdapter;
+	}
+
+	public void setDeletedViewAdapter(DeletedViewAdapter deletedViewAdapter) {
+		this.deletedViewAdapter = deletedViewAdapter;
 	}
 
 	public OnItemDeletedListener getOnItemDeletedListener() {
 		return onItemDeletedListener;
+	}
+
+	public void setOnItemDeletedListener(OnItemDeletedListener onItemDeletedListener) {
+		this.onItemDeletedListener = onItemDeletedListener;
+	}
+
+	public OnItemDeletionConfirmedListener getOnItemDeletionConfirmedListener() {
+		return onItemDeletionConfirmedListener;
+	}
+
+	public void setOnItemDeletionConfirmedListener(OnItemDeletionConfirmedListener onItemDeletionConfirmedListener) {
+		this.onItemDeletionConfirmedListener = onItemDeletionConfirmedListener;
 	}
 
 	public long getAnimLength() {
@@ -265,7 +342,14 @@ public class SwipeToDeleteListView extends ListView
 	public interface OnItemDeletedListener
 	{
 		public void onItemDeleted(SwipeToDeleteListView listView, int position);
+	}
 
+	public interface OnItemDeletionConfirmedListener
+	{
 		public void onItemDeletionConfirmed(SwipeToDeleteListView listView, int position);
+	}
+
+	public interface DeletedViewAdapter {
+		public View getView(int position, View view, ViewGroup parent);
 	}
 }

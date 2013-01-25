@@ -2,4 +2,5 @@
 <resources>
 	<color name="myItemViewBackground">#E4E3E8</color>
 	<color name="listBackground">@android:color/darker_gray</color>
+	<color name="gray">#ff8f8f8f</color>
 </resources>

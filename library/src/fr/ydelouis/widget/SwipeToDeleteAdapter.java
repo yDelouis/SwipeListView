@@ -1,6 +1,5 @@
 package fr.ydelouis.widget;
 
-import android.database.DataSetObserver;
 import android.util.SparseArray;
 import android.view.View;
 import android.view.ViewGroup;
@@ -30,22 +29,15 @@ class SwipeToDeleteAdapter
 
 	@Override
 	public View getView(int position, View view, ViewGroup parent) {
-		if(view != null && view.getTag(listView.getId()) == null)
-			view = null;
-		view = adapter.getView(position, view, parent);
-
 		ItemState itemState = getItemState(position);
-		if(itemState.getState() == ItemState.State.DeletedConfirmed) {
-			if(itemState.getInitialViewHeight() == 0)
-				itemState.setInitialViewHeight(view.getHeight());
-			ViewGroup.LayoutParams lp = new AbsListView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0);
-			lp.height = itemState.getHeight();
-			view = new View(listView.getContext());
-			view.setLayoutParams(lp);
-		} else {
-			view.setTag(listView.getId(), itemState);
+		switch(itemState.getState()) {
+			case DeletionConfirmed:
+				return getDeletionConfirmedView(position, view, parent, itemState);
+			case Deleted:
+				return getDeletedView(position, view, parent, itemState);
+			default:
+				return getNormalView(position, view, parent, itemState);
 		}
-		return view;
 	}
 
 	public ItemState getItemState(int position) {
@@ -57,6 +49,36 @@ class SwipeToDeleteAdapter
 			itemStates.put(position, itemState);
 		}
 		return itemState;
+	}
+
+	private View getDeletionConfirmedView(int position, View view, ViewGroup parent, ItemState itemState) {
+		if(view == null) {
+			if(listView.isConfirmNeeded())
+				view = getNormalView(position, view, parent, itemState);
+			else
+				view = new View(listView.getContext());
+		}
+		setViewHeight(view, itemState);
+		return view;
+	}
+
+	private View getDeletedView(int position, View view, ViewGroup parent, ItemState itemState) {
+		view = listView.getDeletedViewAdapter().getView(position, view,  parent);
+		setViewHeight(view, itemState);
+		return view;
+	}
+
+	private View getNormalView(int position, View view, ViewGroup parent, ItemState itemState) {
+		view = adapter.getView(position, view, parent);
+		itemState.setInitialViewHeight(view.getHeight());
+		view.setTag(listView.getId(), itemState);
+		return view;
+	}
+
+	private void setViewHeight(View view, ItemState itemState) {
+		ViewGroup.LayoutParams lp = new AbsListView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0);
+		lp.height = itemState.getHeight();
+		view.setLayoutParams(lp);
 	}
 
 	public void onItemDeletionConfirmed(ItemState itemState) {
@@ -78,6 +100,27 @@ class SwipeToDeleteAdapter
 	}
 
 	@Override
+	public int getItemViewType(int position) {
+		ItemState itemState = getItemState(position);
+		switch(itemState.getState()) {
+			case DeletionConfirmed:
+				if(listView.isConfirmNeeded())
+					return 1;
+				else
+					return 2;
+			case Deleted:
+				return 1;
+			default:
+				return 0;
+		}
+	}
+
+	@Override
+	public int getViewTypeCount() {
+		return 3;
+	}
+
+	@Override
 	public int getCount() {
 		return adapter.getCount();
 	}
@@ -90,5 +133,15 @@ class SwipeToDeleteAdapter
 	@Override
 	public long getItemId(int position) {
 		return adapter.getItemId(position);
+	}
+
+	public List<Integer> getDeleted() {
+		List<Integer> deleted = new ArrayList<Integer>();
+		for(int i = 0; i < itemStates.size(); i++) {
+			ItemState itemState = itemStates.valueAt(i);
+			if(itemState.getState() == ItemState.State.Deleted)
+				deleted.add(itemState.getPosition());
+		}
+		return deleted;
 	}
 }

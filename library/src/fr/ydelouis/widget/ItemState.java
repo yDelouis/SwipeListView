@@ -7,13 +7,13 @@ class ItemState
 {
 	enum State
 	{
-		Normal, Dragged, Deleted, DeletedConfirmed
+		Normal, Dragged, Deleted, DeletionConfirmed
 	}
 
 	private int position;
 	private State	state = State.Normal;
 	private float	dragPercentage = 0;
-	private float heightPercentage = 0;
+	private float heightPercentage = 1;
 	private float initialViewHeight = 0;
 
 	public ItemState(int position) {
@@ -25,6 +25,13 @@ class ItemState
 			return ViewGroup.LayoutParams.WRAP_CONTENT;
 
 		return (int) (initialViewHeight * heightPercentage);
+	}
+
+	public void reset() {
+		state = State.Normal;
+		dragPercentage = 0;
+		heightPercentage = 1;
+		initialViewHeight = 0;
 	}
 	
 	public int getPosition() {

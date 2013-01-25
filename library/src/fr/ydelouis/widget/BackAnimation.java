@@ -41,8 +41,7 @@ class BackAnimation
 
 	@Override
 	public void onAnimationEnd(Animator animator) {
-		itemState.setState(State.Normal);
-		itemState.setDragPercentage(0);
+		itemState.reset();
 	}
 
 	@Override

@@ -3,6 +3,8 @@
 	<string name="swipeToDeleteListView">SwipeToDeleteListView</string>
 	<string name="swipeToDeleteListViewDemo">SwipeToDeleteListView demo</string>
 	<string name="withoutConfirm">Without confirmation</string>
-	<string name="withConfirm">With confirmation</string>
+	<string name="withConfirm">With confirmation</string><string name="deleted">Deleted</string>
+	<string name="confirmDeletions">Confirm deletions</string>
+	<string name="cancelDeletions">Cancel deletions</string>
 
 </resources>

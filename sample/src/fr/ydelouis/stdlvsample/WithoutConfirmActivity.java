@@ -28,12 +28,13 @@ public class WithoutConfirmActivity
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_list);
+		items = new MyItemModel(this).get(NB_ITEMS);
+		adapter = new MyItemAdapter(this, items);
+
 		listView = (SwipeToDeleteListView) findViewById(R.id.list);
 		listView.setOnItemDeletedListener(this);
 		listView.setOnItemClickListener(this);
 		listView.setOnItemLongClickListener(this);
-		items = new MyItemModel(this).get(NB_ITEMS);
-		adapter = new MyItemAdapter(this, items);
 		listView.setAdapter(adapter);
 	}
 
@@ -41,12 +42,6 @@ public class WithoutConfirmActivity
 	public void onItemDeleted(SwipeToDeleteListView listView, int position) {
 		items.remove(position);
 		adapter.notifyDataSetChanged();
-	}
-
-	@Override
-	public void onItemDeletionConfirmed(SwipeToDeleteListView listView, int position) {
-		// Left blank because there is no confirmation needed so this method is never called;
-		Log.e(getLocalClassName(), "onItemDeletionConfirmed is called and it shouldn't be !");
 	}
 
 	@Override
