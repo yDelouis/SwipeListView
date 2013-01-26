@@ -9,6 +9,7 @@ import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
 import android.widget.ListAdapter;
 import android.widget.ListView;
 import fr.ydelouis.widget.ItemState.State;
@@ -26,6 +27,8 @@ public class SwipeToDeleteListView
 	private int draggedItemPosition = NO_ITEM_DRAGGED;
 	private MotionEvent lastMotionEvent;
 	private Drawable selector;
+	private OnItemClickListener onItemClickListener;
+	private OnItemLongClickListener onItemLongClickListener;
 	private OnItemDeletedListener onItemDeletedListener;
 	private OnItemDeletionConfirmedListener onItemDeletionConfirmedListener;
 	private long animLength = ANIM_LENGTH;
@@ -72,9 +75,8 @@ public class SwipeToDeleteListView
 	}
 
 	private void setAlpha(Canvas canvas, ItemState itemState) {
-		float alphaPercentage = 1f - 4f / 3f * Math.abs(itemState.getDragPercentage());
-		if(alphaPercentage < 0)
-			alphaPercentage = 0;
+		float alphaPercentage = 1f - 2f * Math.abs(itemState.getDragPercentage());
+		alphaPercentage = Math.max(alphaPercentage, 0.2f);
 		int alpha = (int) (255 * alphaPercentage);
 		RectF rect = new RectF(0, 0, canvas.getWidth(), canvas.getHeight());
 		canvas.saveLayerAlpha(rect, alpha, Canvas.ALL_SAVE_FLAG);
@@ -90,92 +92,46 @@ public class SwipeToDeleteListView
 		if(adapter == null)
 			return super.onTouchEvent(event);
 
-		boolean handled;
 		switch(event.getAction()) {
 			case MotionEvent.ACTION_DOWN:
-				if(selector != null)
-					setSelector(selector);
-				startDragging(event);
-				handled = false;
+				onActionDown(event);
 				break;
 			case MotionEvent.ACTION_MOVE:
-				if(isDraggingHorizontally(event)) {
-					setSelector(android.R.color.transparent);
-					drag(event);
-					handled = true;
-				} else {
-					if(isDraggingVertically(event))
-						startBackAnimation();
-					handled = false;
-				}
+				onActionMove(event);
 				break;
 			case MotionEvent.ACTION_UP:
-				drag(event);
-				stopDragging();
-				handled = hasBeenDragged();
-				setSelector(R.color.transparent);
-				break;
-			default:
-				handled = hasBeenDragged();
+				onActionUp();
 				break;
 		}
-		return handled || super.onTouchEvent(event);
+		saveLastMotionEvent(event);
+		return super.onTouchEvent(event);
 	}
 
 	private void saveLastMotionEvent(MotionEvent event) {
 		lastMotionEvent = MotionEvent.obtain(event);
 	}
 
-	private ItemState getDraggedItemState() {
-		if(draggedItemPosition == NO_ITEM_DRAGGED || adapter == null)
-			return null;
-		return adapter.getItemState(draggedItemPosition);
+	private void onActionDown(MotionEvent event){
+		enableOtherEvents();
+		setDraggedItem(event);
 	}
 
-	private void startDragging(MotionEvent event) {
+	private void setDraggedItem(MotionEvent event) {
 		int position = pointToPosition((int) event.getX(), (int) event.getY());
 		ItemState itemState = adapter.getItemState(position);
 		if(itemState != null && itemState.getState() == State.Normal) {
 			draggedItemPosition = position;
 			itemState.setState(State.Dragged);
-			saveLastMotionEvent(event);
 		}
 	}
 
-	private void drag(MotionEvent event) {
-		ItemState itemState = getDraggedItemState();
-		if(itemState != null && itemState.getState() == State.Dragged) {
-			float dragOffset = event.getX() - lastMotionEvent.getX();
-			float dragPercentage = itemState.getDragPercentage();
-			dragPercentage += dragOffset / getWidth();
-			itemState.setDragPercentage(dragPercentage);
-			invalidate();
-		}
-		saveLastMotionEvent(event);
-	}
-
-	private void stopDragging() {
-		if(isToBeDeleted())
-			startDeletionAnimation();
-		else
+	private void onActionMove(MotionEvent event) {
+		if(isDraggingHorizontally(event)) {
+			if(hasBeenDragged())
+				disableOtherEvents();
+			drag(event);
+		} else if(isDraggingVertically(event))
 			startBackAnimation();
-		draggedItemPosition = NO_ITEM_DRAGGED;
-	}
-
-	private boolean hasBeenDragged() {
-		ItemState itemState = getDraggedItemState();
-		if(itemState == null || itemState.getState() != State.Dragged)
-			return false;
-		float dragPercentage = itemState.getDragPercentage();
-		return Math.abs(dragPercentage * getWidth()) > 20;
-	}
-
-	private boolean isToBeDeleted() {
-		ItemState itemState = getDraggedItemState();
-		if(itemState == null || itemState.getState() != State.Dragged)
-			return false;
-		float dragPercentage = itemState.getDragPercentage();
-		return Math.abs(dragPercentage) > 0.5;
 	}
 
 	private boolean isDraggingHorizontally(MotionEvent event) {
@@ -189,6 +145,64 @@ public class SwipeToDeleteListView
 	private boolean isDraggingVertically(MotionEvent event) {
 		float deltaY = Math.abs(event.getY() - lastMotionEvent.getY());
 		return deltaY > 20;
+	}
+
+	private boolean hasBeenDragged() {
+		ItemState itemState = getDraggedItemState();
+		if(itemState == null || itemState.getState() != State.Dragged)
+			return false;
+		float dragPercentage = itemState.getDragPercentage();
+		return Math.abs(dragPercentage * getWidth()) > 20;
+	}
+
+	private void disableOtherEvents() {
+		setSelector(android.R.color.transparent);
+		super.setOnItemClickListener(null);
+		super.setOnItemLongClickListener(null);
+	}
+
+	private void drag(MotionEvent event) {
+		ItemState itemState = getDraggedItemState();
+		if(itemState != null && itemState.getState() == State.Dragged) {
+			float dragOffset = event.getX() - lastMotionEvent.getX();
+			float dragPercentage = itemState.getDragPercentage();
+			dragPercentage += dragOffset / getWidth();
+			itemState.setDragPercentage(dragPercentage);
+			invalidate();
+		}
+	}
+
+	private void onActionUp() {
+		stopDragging();
+	}
+
+	private void enableOtherEvents() {
+		if(selector != null)
+			setSelector(selector);
+		super.setOnItemClickListener(onItemClickListener);
+		super.setOnItemLongClickListener(onItemLongClickListener);
+	}
+
+	private void stopDragging() {
+		if(isToBeDeleted())
+			startDeletionAnimation();
+		else
+			startBackAnimation();
+		draggedItemPosition = NO_ITEM_DRAGGED;
+	}
+
+	private boolean isToBeDeleted() {
+		ItemState itemState = getDraggedItemState();
+		if(itemState == null || itemState.getState() != State.Dragged)
+			return false;
+		float dragPercentage = itemState.getDragPercentage();
+		return Math.abs(dragPercentage) > 0.5;
+	}
+
+	private ItemState getDraggedItemState() {
+		if(draggedItemPosition == NO_ITEM_DRAGGED || adapter == null)
+			return null;
+		return adapter.getItemState(draggedItemPosition);
 	}
 
 	private void startBackAnimation() {
@@ -305,6 +319,18 @@ public class SwipeToDeleteListView
 
 	public void setDeletedViewAdapter(DeletedViewAdapter deletedViewAdapter) {
 		this.deletedViewAdapter = deletedViewAdapter;
+	}
+
+	@Override
+	public void setOnItemClickListener(OnItemClickListener listener) {
+		this.onItemClickListener = listener;
+		super.setOnItemClickListener(listener);
+	}
+
+	@Override
+	public void setOnItemLongClickListener(OnItemLongClickListener listener) {
+		this.onItemLongClickListener = listener;
+		super.setOnItemLongClickListener(listener);
 	}
 
 	public OnItemDeletedListener getOnItemDeletedListener() {
