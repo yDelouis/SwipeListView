@@ -247,7 +247,7 @@ public class SwipeToDeleteListView
 		new DeletionConfirmedAnimation(this, itemState, animLength).start();
 	}
 
-	void notifyDataSetChanged() {
+	public void notifyDataSetChanged() {
 		adapter.notifyDataSetChanged();
 	}
 
