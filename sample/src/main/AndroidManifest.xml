@@ -12,7 +12,7 @@
 		android:theme="@style/AppTheme">
 
 		<activity
-			android:name=".MainActivity"
+			android:name="fr.ydelouis.swipelistviewsample.MainActivity"
 			android:label="@string/swipeToDeleteListView">
 			<intent-filter>
 				<action android:name="android.intent.action.MAIN" />
@@ -21,10 +21,10 @@
 		</activity>
 
 		<activity
-			android:name=".WithoutConfirmActivity"
+			android:name="fr.ydelouis.swipelistviewsample.WithoutConfirmActivity"
 			android:label="@string/withoutConfirm" />
 		<activity
-			android:name=".WithConfirmActivity"
+			android:name="fr.ydelouis.swipelistviewsample.WithConfirmActivity"
 			android:label="@string/withConfirm" />
 
 	</application>
