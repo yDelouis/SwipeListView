@@ -28,3 +28,9 @@ proguard/
 *.iws
 .idea/
 *.eml
+
+.gradle/
+build/
+.gradletasknamecache
+
+.DS_Store

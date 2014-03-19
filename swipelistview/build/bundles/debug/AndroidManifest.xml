@@ -1,0 +1,8 @@
+<!-- From: file:/Users/yDelouis/Projects/SwipeToDeleteListView/swipelistview/src/main/AndroidManifest.xml -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" android:versionCode="1" android:versionName="1.0" package="fr.ydelouis.stdlv">
+
+    <uses-sdk android:minSdkVersion="14" android:targetSdkVersion="17"/>
+
+    <application android:allowBackup="true"/>
+
+</manifest>
